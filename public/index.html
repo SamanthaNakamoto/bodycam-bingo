@@ -195,8 +195,8 @@
   <h2>Enter your name to get your card</h2>
   <input id="name-input" type="text" placeholder="Your name" maxlength="24"/>
   <button class="btn-primary" onclick="joinGame()">Join Game</button>
-  <span class="or-divider">— or —</span>
-  <button class="btn-host" onclick="goHostView()">🖥️ Host / Mod View</button>
+  <span class="or-divider" id="host-btn-divider">— or —</span>
+  <button class="btn-host" id="host-btn" onclick="goHostView()">🖥️ Host / Mod View</button>
 </div>
 
 <!-- PLAYER SCREEN -->
@@ -243,6 +243,18 @@
   let autoCallInterval = null;
   let isHost = false;
 
+  // ── HOST KEY CHECK ──────────────────────────────────────────
+  const HOST_KEY = 'bingo2024'; // change this to your secret word
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasHostKey = urlParams.get('host') === HOST_KEY;
+
+  // Hide the Host/Mod button entirely for regular viewers
+  if (!hasHostKey) {
+    document.getElementById('host-btn').style.display = 'none';
+    document.getElementById('host-btn-divider').style.display = 'none';
+  }
+  // ────────────────────────────────────────────────────────────
+
   function joinGame() {
     const name = document.getElementById('name-input').value.trim();
     if (!name) { alert('Please enter your name!'); return; }
@@ -254,6 +266,10 @@
   }
 
   function goHostView() {
+    if (!hasHostKey) {
+      alert('Access denied.');
+      return;
+    }
     isHost = true;
     socket.emit('requestHostData');
     document.getElementById('join-screen').style.display = 'none';
