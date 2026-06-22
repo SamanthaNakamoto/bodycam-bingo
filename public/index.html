@@ -76,8 +76,9 @@
       word-break: break-word;
     }
     .bingo-cell:hover { border-color: #7c3aed; }
-    .bingo-cell.marked { background: #7c3aed; color: #fff; border-color: #a78bfa; }
-    .bingo-cell.free   { background: #4c1d95; color: #fbbf24; font-weight: bold; cursor: default; }
+    .bingo-cell.marked   { background: #7c3aed; color: #fff; border-color: #a78bfa; }
+    .bingo-cell.free     { background: #4c1d95; color: #fbbf24; font-weight: bold; cursor: default; }
+    .bingo-cell.callable { border-color: #fbbf24; }
     #host-screen { display: none; }
     .host-controls {
       background: #1e1b4b;
@@ -244,7 +245,7 @@
   let isHost = false;
 
   // ── HOST KEY CHECK ──────────────────────────────────────────
-  const HOST_KEY = 'bingo2024'; // change this to your secret word
+  const HOST_KEY = 'bingo2024';
   const urlParams = new URLSearchParams(window.location.search);
   const hasHostKey = urlParams.get('host') === HOST_KEY;
 
@@ -402,14 +403,16 @@
     });
   }
 
+  // ── UPDATED: only highlight callable cells, don't auto-mark ──
   function updatePlayerCardMarks() {
     const cells = document.querySelectorAll('.bingo-cell:not(.free)');
     cells.forEach(function(cell) {
       if (calledPhrases.includes(cell.textContent)) {
-        cell.classList.add('marked');
+        cell.classList.add('callable');
       }
     });
   }
+  // ─────────────────────────────────────────────────────────────
 
   function populatePhraseSelect() {
     const sel = document.getElementById('phrase-select');
