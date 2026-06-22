@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -32,7 +31,23 @@ const PHRASES = [
   "Misogyny card",
   "Does not consent to arrest",
   '"I can\'t breathe" -white person',
-  "Cuffs too tight"
+  "Cuffs too tight",
+  "Spits at officer",
+  "Blames the victim",
+  "Asks to speak to a supervisor",
+  "Claims medical emergency",
+  "Tries to bribe officer",
+  "Removes handcuffs themselves",
+  "Goes limp on the ground",
+  "Threatens to call the news",
+  "Screams for bystanders to help",
+  "Denies everything on camera",
+  "Asks if they're being detained",
+  "Invokes the constitution",
+  "Fake faints",
+  "Runs on foot",
+  "Hides in bushes",
+  "Wrong address raid"
 ];
 
 let gameState = {
@@ -50,17 +65,18 @@ function shuffle(array) {
 }
 
 function generateCard() {
-  const shuffled = shuffle(PHRASES);
+  // Pick 24 random unique phrases from the pool for this player's card
+  const picked = shuffle(PHRASES).slice(0, 24);
   const card = [];
+  let idx = 0;
   for (let row = 0; row < 5; row++) {
     const r = [];
     for (let col = 0; col < 5; col++) {
       if (row === 2 && col === 2) {
         r.push({ phrase: '⭐ FREE', free: true, marked: true });
       } else {
-        const idx = row * 5 + col;
-        const adjustedIdx = idx >= 12 ? idx - 1 : idx;
-        r.push({ phrase: shuffled[adjustedIdx], free: false, marked: false });
+        r.push({ phrase: picked[idx], free: false, marked: false });
+        idx++;
       }
     }
     card.push(r);
@@ -69,15 +85,12 @@ function generateCard() {
 }
 
 function checkBingo(card) {
-  // Rows
   for (let r = 0; r < 5; r++) {
     if (card[r].every(cell => cell.marked)) return true;
   }
-  // Columns
   for (let c = 0; c < 5; c++) {
     if (card.every(row => row[c].marked)) return true;
   }
-  // Diagonals
   if ([0,1,2,3,4].every(i => card[i][i].marked)) return true;
   if ([0,1,2,3,4].every(i => card[i][4-i].marked)) return true;
   return false;
@@ -110,7 +123,6 @@ io.on('connection', (socket) => {
     if (!gameState.calledPhrases.includes(phrase)) {
       gameState.calledPhrases.push(phrase);
 
-      // Auto-mark cards
       for (const id in gameState.players) {
         const player = gameState.players[id];
         for (const row of player.card) {
