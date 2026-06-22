@@ -123,19 +123,6 @@ io.on('connection', (socket) => {
     if (!gameState.calledPhrases.includes(phrase)) {
       gameState.calledPhrases.push(phrase);
 
-      for (const id in gameState.players) {
-        const player = gameState.players[id];
-        for (const row of player.card) {
-          for (const cell of row) {
-            if (cell.phrase === phrase) cell.marked = true;
-          }
-        }
-        if (!player.hasBingo && checkBingo(player.card)) {
-          player.hasBingo = true;
-          io.emit('bingoAnnounce', { name: player.name });
-        }
-      }
-
       io.emit('phraseCalled', {
         phrase,
         calledPhrases: gameState.calledPhrases
