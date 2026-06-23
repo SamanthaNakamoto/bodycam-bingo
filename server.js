@@ -65,7 +65,6 @@ function shuffle(array) {
 }
 
 function generateCard() {
-  // Pick 24 random unique phrases from the pool for this player's card
   const picked = shuffle(PHRASES).slice(0, 24);
   const card = [];
   let idx = 0;
@@ -122,7 +121,6 @@ io.on('connection', (socket) => {
   socket.on('callPhrase', (phrase) => {
     if (!gameState.calledPhrases.includes(phrase)) {
       gameState.calledPhrases.push(phrase);
-
       io.emit('phraseCalled', {
         phrase,
         calledPhrases: gameState.calledPhrases
@@ -130,10 +128,7 @@ io.on('connection', (socket) => {
       io.emit('playerUpdate', buildPlayerList());
     }
   });
-  
-  });  // ← line 132, end of callPhrase
 
-  // ← INSERT HERE (line 133 blank)
   socket.on('markCell', (phrase) => {
     const player = gameState.players[socket.id];
     if (!player) return;
@@ -154,8 +149,6 @@ io.on('connection', (socket) => {
 
     io.emit('playerUpdate', buildPlayerList());
   });
-
-  socket.on('resetGame', () => {  // ← line 134, continues as normal
 
   socket.on('resetGame', () => {
     gameState = { calledPhrases: [], players: {} };
