@@ -130,6 +130,32 @@ io.on('connection', (socket) => {
       io.emit('playerUpdate', buildPlayerList());
     }
   });
+  
+  });  // ← line 132, end of callPhrase
+
+  // ← INSERT HERE (line 133 blank)
+  socket.on('markCell', (phrase) => {
+    const player = gameState.players[socket.id];
+    if (!player) return;
+    if (!gameState.calledPhrases.includes(phrase)) return;
+
+    for (const row of player.card) {
+      for (const cell of row) {
+        if (cell.phrase === phrase) {
+          cell.marked = !cell.marked;
+        }
+      }
+    }
+
+    if (!player.hasBingo && checkBingo(player.card)) {
+      player.hasBingo = true;
+      io.emit('bingoAnnounce', { name: player.name });
+    }
+
+    io.emit('playerUpdate', buildPlayerList());
+  });
+
+  socket.on('resetGame', () => {  // ← line 134, continues as normal
 
   socket.on('resetGame', () => {
     gameState = { calledPhrases: [], players: {} };
