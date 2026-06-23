@@ -392,11 +392,13 @@
         div.textContent = cell.phrase;
         if (!cell.free) {
           div.onclick = function() {
-            if (calledPhrases.includes(cell.phrase)) {
-              cell.marked = !cell.marked;
-              div.classList.toggle('marked', cell.marked);
-            }
-          };
+    if (calledPhrases.includes(cell.phrase)) {
+      cell.marked = !cell.marked;
+      div.classList.toggle('marked', cell.marked);
+      socket.emit('markCell', cell.phrase);
+    }
+  };
+
         }
         grid.appendChild(div);
       });
