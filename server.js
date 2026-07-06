@@ -3,7 +3,13 @@ const http = require('http');
 const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+const io = new Server(server, {
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 300000, // 5 minutes
+    skipMiddlewares: true,
+  }
+});
 
 app.use(express.static('public'));
 
