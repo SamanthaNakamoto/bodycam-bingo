@@ -58,8 +58,11 @@ const PHRASES = [
 
 let gameState = {
   calledPhrases: [],
-  players: {}
+  players: {} // now keyed by playerId (persistent), not socket.id
 };
+
+const disconnectTimers = {}; // playerId -> setTimeout reference
+const GRACE_PERIOD = 2100000; // 35 minutes
 
 function shuffle(array) {
   const arr = [...array];
@@ -109,10 +112,36 @@ io.on('connection', (socket) => {
     allPhrases: PHRASES
   });
 
-  socket.on('joinGame', (name) => {
-    const card = generateCard();
-    gameState.players[socket.id] = { name, card, hasBingo: false };
-    socket.emit('cardDealt', { card, calledPhrases: gameState.calledPhrases });
+  socket.on('joinGame', ({ playerId, name }) => {
+    // Cancel pending removal if this player is reconnecting
+    if (disconnectTimers[playerId]) {
+      clearTimeout(disconnectTimers[playerId]);
+      delete disconnectTimers[playerId];
+    }
+
+    socket.playerId = playerId;
+
+    if (gameState.players[playerId]) {
+      // Returning player — restore their existing card/progress
+      gameState.players[playerId].socketId = socket.id;
+      gameState.players[playerId].connected = true;
+      socket.emit('cardDealt', {
+        card: gameState.players[playerId].card,
+        calledPhrases: gameState.calledPhrases
+      });
+    } else {
+      // Brand new player
+      const card = generateCard();
+      gameState.players[playerId] = {
+        name,
+        card,
+        hasBingo: false,
+        socketId: socket.id,
+        connected: true
+      };
+      socket.emit('cardDealt', { card, calledPhrases: gameState.calledPhrases });
+    }
+
     io.emit('playerUpdate', buildPlayerList());
   });
 
@@ -136,7 +165,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('markCell', (phrase) => {
-    const player = gameState.players[socket.id];
+    const player = gameState.players[socket.playerId];
     if (!player) return;
     if (!gameState.calledPhrases.includes(phrase)) return;
 
@@ -157,15 +186,29 @@ io.on('connection', (socket) => {
   });
 
   socket.on('resetGame', () => {
+    Object.values(disconnectTimers).forEach(clearTimeout);
+    for (const key in disconnectTimers) delete disconnectTimers[key];
+
     gameState = { calledPhrases: [], players: {} };
     io.emit('gameReset');
     io.emit('playerUpdate', []);
   });
 
   socket.on('disconnect', () => {
-    delete gameState.players[socket.id];
+    const playerId = socket.playerId;
+    if (!playerId || !gameState.players[playerId]) return;
+
+    gameState.players[playerId].connected = false;
+
+    // Grace period before actually removing the player
+    disconnectTimers[playerId] = setTimeout(() => {
+      delete gameState.players[playerId];
+      delete disconnectTimers[playerId];
+      io.emit('playerUpdate', buildPlayerList());
+    }, GRACE_PERIOD);
+
     io.emit('playerUpdate', buildPlayerList());
-    console.log('User disconnected:', socket.id);
+    console.log('User disconnected:', socket.id, '- grace period started for', playerId);
   });
 });
 
@@ -174,7 +217,8 @@ function buildPlayerList() {
     id,
     name: p.name,
     card: p.card,
-    hasBingo: p.hasBingo
+    hasBingo: p.hasBingo,
+    connected: p.connected
   }));
 }
 
