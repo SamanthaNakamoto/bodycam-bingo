@@ -304,7 +304,16 @@
     const name = document.getElementById('name-input').value.trim();
     if (!name) { alert('Please enter your name!'); return; }
     isHost = false;
-    socket.emit('joinGame', name);
+
+// Generate or retrieve a persistent player ID
+let playerId = localStorage.getItem('bingoPlayerId');
+if (!playerId) {
+  playerId = crypto.randomUUID();
+  localStorage.setItem('bingoPlayerId', playerId);
+}
+
+// Send both playerId and name when joining
+socket.emit('joinGame', { playerId, name: name });
     document.getElementById('join-screen').style.display = 'none';
     document.getElementById('player-screen').style.display = 'block';
     document.getElementById('player-greeting').textContent = 'Your card, ' + name + ' 🎱';
