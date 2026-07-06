@@ -178,6 +178,42 @@
       font-weight: bold;
       z-index: 999;
     }
+#bingo-alert .dismiss-btn {
+  display: block;
+  margin: 20px auto 0;
+  background: #0d0d1a;
+  color: #fbbf24;
+  border: 2px solid #0d0d1a;
+  padding: 10px 24px;
+  font-size: 1rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+#bingo-alert .dismiss-btn:hover { opacity: 0.85; }
+
+#host-bingo-alert {
+  display: none;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #fbbf24;
+  color: #0d0d1a;
+  padding: 14px 40px 14px 22px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  z-index: 999;
+}
+#host-bingo-alert .close-x {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #0d0d1a;
+}
+
     @keyframes popIn {
       from { transform: translate(-50%,-50%) scale(0.5); opacity: 0; }
       to   { transform: translate(-50%,-50%) scale(1);   opacity: 1; }
@@ -231,8 +267,16 @@
 </div>
 
 <!-- ALERTS -->
-<div id="bingo-alert">🎉 BINGO! 🎉<br/><span id="bingo-name"></span></div>
-<div id="host-bingo-alert"></div>
+<div id="bingo-alert">
+  🎉 BINGO! 🎉<br/>
+  <span id="bingo-name"></span>
+  <button class="dismiss-btn" onclick="dismissBingoAlert()">Dismiss</button>
+</div>
+<div id="host-bingo-alert">
+  <span id="host-bingo-text"></span>
+  <span class="close-x" onclick="dismissHostBingoAlert()">✕</span>
+</div>
+
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -327,6 +371,7 @@
     myCard = data.card;
     calledPhrases = data.calledPhrases;
     renderPlayerCard();
+    updatePlayerCardMarks();  // ← ADD THIS: lights up gold borders immediately for late joiners
   });
 
   socket.on('hostData', function(data) {
@@ -359,14 +404,20 @@
       const alertBox = document.getElementById('bingo-alert');
       document.getElementById('bingo-name').textContent = data.name + ' got BINGO!';
       alertBox.style.display = 'block';
-      setTimeout(function() { alertBox.style.display = 'none'; }, 4000);
     } else {
       const alertBox = document.getElementById('host-bingo-alert');
-      alertBox.textContent = '🎉 ' + data.name + ' got BINGO!';
+      document.getElementById('host-bingo-text').textContent = '🎉 ' + data.name + ' got BINGO!';
       alertBox.style.display = 'block';
-      setTimeout(function() { alertBox.style.display = 'none'; }, 5000);
     }
   });
+
+  function dismissBingoAlert() {
+    document.getElementById('bingo-alert').style.display = 'none';
+  }
+
+  function dismissHostBingoAlert() {
+    document.getElementById('host-bingo-alert').style.display = 'none';
+  }
 
   socket.on('gameReset', function() {
     calledPhrases = [];
