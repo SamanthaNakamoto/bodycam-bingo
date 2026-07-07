@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%93%B9</text></svg>">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Bodycam Bingo</title>
@@ -106,6 +107,7 @@
       padding: 16px;
       margin-bottom: 16px;
     }
+
     .called-phrases h3 { margin-bottom: 10px; color: #a78bfa; }
     .phrase-chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .phrase-chip {
@@ -165,19 +167,7 @@
       text-align: center;
       animation: popIn 0.3s ease;
     }
-    #host-bingo-alert {
-      display: none;
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #fbbf24;
-      color: #0d0d1a;
-      padding: 14px 22px;
-      border-radius: 12px;
-      font-size: 1.1rem;
-      font-weight: bold;
-      z-index: 999;
-    }
+    
 #bingo-alert .dismiss-btn {
   display: block;
   margin: 20px auto 0;
@@ -221,11 +211,72 @@
     .player-count { margin-left: auto; color: #6b7280; font-size: 0.9rem; }
     .or-divider   { color: #6b7280; font-size: 0.9rem; }
     #auto-call-btn.active { background: #dc2626; }
+
+    #phrase-flash {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 180px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+#phrase-flash.active {
+  animation: flashPulse 0.6s ease;
+}
+
+.reaction-bar {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.reaction-btn {
+  font-size: 32px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.reaction-btn:hover {
+  transform: scale(1.3);
+}
+
+.floating-reaction {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  background: rgba(0,0,0,0.75);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  animation: floatUp 2s ease forwards;
+  z-index: 9998;
+}
+
+@keyframes floatUp {
+  0%   { opacity: 1; bottom: 20px; }
+  100% { opacity: 0; bottom: 120px; }
+}
+
+@keyframes flashPulse {
+  0%   { opacity: 0; transform: scale(0.5); }
+  40%  { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1); }
+}
   </style>
 </head>
 <body>
 
 <h1>🚔 Bodycam Bingo</h1>
+   <div id="phrase-flash">🚨</div>
 
 <!-- JOIN SCREEN -->
 <div id="join-screen">
@@ -237,12 +288,18 @@
 </div>
 
 <!-- PLAYER SCREEN -->
-<div id="player-screen">
+ <div id="player-screen">
   <p id="player-greeting" style="text-align:center;color:#c4b5fd;margin-bottom:12px;"></p>
+<p id="win-condition-banner" style="text-align:center;color:#fbbf24;font-weight:bold;margin-bottom:12px;"></p>
   <div id="bingo-card" class="bingo-grid"></div>
   <p style="text-align:center;color:#6b7280;font-size:0.8rem;margin-top:8px;">
     Only called phrases can be marked ✓
   </p>
+  <div class="reaction-bar">
+    <button class="reaction-btn" onclick="sendReaction('😤')">😤</button>
+    <button class="reaction-btn" onclick="sendReaction('🍿')">🍿</button>
+    <button class="reaction-btn" onclick="sendReaction('🙄')">🙄</button>
+  </div>
 </div>
 
 <!-- HOST SCREEN -->
@@ -250,6 +307,12 @@
   <div class="host-controls">
     <select id="phrase-select">
       <option value="">— Select a phrase —</option>
+    </select>
+    <select id="win-condition-select" onchange="setWinCondition()">    
+      <option value="singleLine">Single Line</option>
+      <option value="xPattern">X Pattern</option>
+      <option value="fourCorners">Four Corners</option>
+      <option value="blackout">Blackout (Full Card)</option>
     </select>
     <button class="btn-primary" onclick="callPhrase()">📣 Call Phrase</button>
     <button class="btn-green" id="auto-call-btn" onclick="toggleAutoCall()">▶ Auto Call</button>
@@ -260,6 +323,12 @@
     <h3>Called Phrases</h3>
     <div class="phrase-chips" id="called-chips"></div>
   </div>
+
+  <div class="called-phrases" id="win-history-section">
+  <h3>🏆 Hall of Fame</h3>
+  <div id="win-history-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+</div>
+
   <div id="all-player-cards">
     <h2>All Player Cards</h2>
     <div class="player-cards-grid" id="player-cards-grid"></div>
@@ -287,9 +356,25 @@
   let allPhrases = [];
   let autoCallInterval = null;
   let isHost = false;
+  let playerId = null;
+  let currentPlayerName = '';
+  let currentWinCondition = 'singleLine'; 
+
+const WIN_LABELS = {
+  singleLine: 'Single Line',
+  xPattern: 'X Pattern (Both Diagonals)',
+  fourCorners: 'Four Corners',
+  blackout: 'Blackout (Full Card)'
+};
+
+function updateWinConditionBanner() {
+  const banner = document.getElementById('win-condition-banner');
+  if (banner) banner.textContent = '🎯 Now playing for: ' + (WIN_LABELS[currentWinCondition] || 'Single Line');
+}
+
 
   // ── HOST KEY CHECK ──────────────────────────────────────────
-  const HOST_KEY = 'bingo2024';
+  const HOST_KEY = 'x93-lux-raven-andras-edwina-protocol-261k';
   const urlParams = new URLSearchParams(window.location.search);
   const hasHostKey = urlParams.get('host') === HOST_KEY;
 
@@ -300,24 +385,29 @@
   }
   // ────────────────────────────────────────────────────────────
 
-  function joinGame() {
-    const name = document.getElementById('name-input').value.trim();
-    if (!name) { alert('Please enter your name!'); return; }
-    isHost = false;
+function joinGame() {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name) { alert('Please enter your name!'); return; }
+  isHost = false;
+  currentPlayerName = name;
 
-// Generate or retrieve a persistent player ID
-let playerId = localStorage.getItem('bingoPlayerId');
-if (!playerId) {
-  playerId = crypto.randomUUID();
-  localStorage.setItem('bingoPlayerId', playerId);
+  // Generate or retrieve a persistent player ID
+  playerId = localStorage.getItem('bingoPlayerId');
+  if (!playerId) {
+    playerId = crypto.randomUUID();
+    localStorage.setItem('bingoPlayerId', playerId);
+  }
+
+  // Send both playerId and name when joining
+  socket.emit('joinGame', { playerId, name: name });
+  document.getElementById('join-screen').style.display = 'none';
+  document.getElementById('player-screen').style.display = 'block';
+document.getElementById('player-greeting').textContent = 'Your card, ' + name + ' 📹';
 }
 
-// Send both playerId and name when joining
-socket.emit('joinGame', { playerId, name: name });
-    document.getElementById('join-screen').style.display = 'none';
-    document.getElementById('player-screen').style.display = 'block';
-    document.getElementById('player-greeting').textContent = 'Your card, ' + name + ' 🎱';
-  }
+function sendReaction(emote) {
+  socket.emit('playerReaction', { playerId, name: currentPlayerName, emote });
+}
 
   function goHostView() {
     if (!hasHostKey) {
@@ -338,6 +428,10 @@ socket.emit('joinGame', { playerId, name: name });
     sel.value = '';
   }
 
+  function setWinCondition() {
+  const sel = document.getElementById('win-condition-select');
+  socket.emit('setWinCondition', sel.value);
+}
   function toggleAutoCall() {
     const btn = document.getElementById('auto-call-btn');
     if (autoCallInterval) {
@@ -371,35 +465,62 @@ socket.emit('joinGame', { playerId, name: name });
     }
   }
 
-  socket.on('gameState', function(data) {
-    calledPhrases = data.calledPhrases;
-    allPhrases    = data.allPhrases;
-  });
+ socket.on('gameState', function(data) {
+  calledPhrases = data.calledPhrases;
+  allPhrases    = data.allPhrases;
+  currentWinCondition = data.currentWinCondition;
+  updateWinConditionBanner();
+});
 
   socket.on('cardDealt', function(data) {
     myCard = data.card;
     calledPhrases = data.calledPhrases;
     renderPlayerCard();
-    updatePlayerCardMarks();  // ← ADD THIS: lights up gold borders immediately for late joiners
+    updatePlayerCardMarks();  
   });
 
   socket.on('hostData', function(data) {
-    calledPhrases = data.calledPhrases;
-    allPhrases    = data.allPhrases;
-    populatePhraseSelect();
-    renderCalledChips();
-    renderAllPlayerCards(data.players);
-  });
+  calledPhrases = data.calledPhrases;
+  allPhrases    = data.allPhrases;
+  populatePhraseSelect();
+  renderCalledChips();
+  renderAllPlayerCards(data.players);
+  currentWinCondition = data.currentWinCondition;
+  document.getElementById('win-condition-select').value = currentWinCondition;
+  renderWinHistory(data.winHistory); 
+});
 
-  socket.on('phraseCalled', function(data) {
-    calledPhrases = data.calledPhrases;
-    if (!isHost) {
-      updatePlayerCardMarks();
-    } else {
-      renderCalledChips();
-      populatePhraseSelect();
-    }
-  });
+socket.on('phraseCalled', function(data) {
+  calledPhrases = data.calledPhrases;
+  if (!isHost) {
+    updatePlayerCardMarks();
+  } else {
+    renderCalledChips();
+    populatePhraseSelect();
+  }
+  flashSiren();
+});
+
+socket.on('winHistoryUpdate', function(history) {
+  renderWinHistory(history);
+});
+
+socket.on('winConditionChanged', function(condition) {
+  currentWinCondition = condition;
+  updateWinConditionBanner();
+  if (isHost) {
+    const sel = document.getElementById('win-condition-select');
+    if (sel) sel.value = condition;
+  }
+});
+
+function flashSiren() {
+  const flash = document.getElementById('phrase-flash');
+  flash.classList.remove('active');
+  void flash.offsetWidth; // forces browser to restart the animation
+  flash.classList.add('active');
+}
+
 
   socket.on('playerUpdate', function(players) {
     const count = players.length;
@@ -408,17 +529,30 @@ socket.emit('joinGame', { playerId, name: name });
     if (isHost) renderAllPlayerCards(players);
   });
 
-  socket.on('bingoAnnounce', function(data) {
-    if (!isHost) {
-      const alertBox = document.getElementById('bingo-alert');
-      document.getElementById('bingo-name').textContent = data.name + ' got BINGO!';
-      alertBox.style.display = 'block';
-    } else {
-      const alertBox = document.getElementById('host-bingo-alert');
-      document.getElementById('host-bingo-text').textContent = '🎉 ' + data.name + ' got BINGO!';
-      alertBox.style.display = 'block';
-    }
-  });
+socket.on('bingoAnnounce', function(data) {
+  const patternLabel = WIN_LABELS[data.pattern] || data.pattern;
+  if (!isHost) {
+    const alertBox = document.getElementById('bingo-alert');
+    document.getElementById('bingo-name').textContent = data.name + ' got BINGO! (' + patternLabel + ')';
+    alertBox.style.display = 'block';
+  } else {
+    const alertBox = document.getElementById('host-bingo-alert');
+    document.getElementById('host-bingo-text').textContent = '🎉 ' + data.name + ' got BINGO! (' + patternLabel + ')';
+    alertBox.style.display = 'block';
+  }
+});
+
+  socket.on('reactionBroadcast', ({ name, emote }) => {
+  showFloatingReaction(name, emote);
+});
+
+function showFloatingReaction(name, emote) {
+  const el = document.createElement('div');
+  el.className = 'floating-reaction';
+  el.textContent = `${emote} ${name}`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
 
   function dismissBingoAlert() {
     document.getElementById('bingo-alert').style.display = 'none';
@@ -428,17 +562,18 @@ socket.emit('joinGame', { playerId, name: name });
     document.getElementById('host-bingo-alert').style.display = 'none';
   }
 
-  socket.on('gameReset', function() {
-    calledPhrases = [];
-    myCard = [];
-    document.getElementById('join-screen').style.display = 'flex';
-    document.getElementById('player-screen').style.display = 'none';
-    document.getElementById('host-screen').style.display = 'none';
-    if (autoCallInterval) {
-      clearInterval(autoCallInterval);
-      autoCallInterval = null;
-    }
-  });
+socket.on('gameReset', function() {
+  calledPhrases = [];
+  myCard = [];
+  document.getElementById('join-screen').style.display = 'flex';
+  document.getElementById('player-screen').style.display = 'none';
+  document.getElementById('host-screen').style.display = 'none';
+  if (autoCallInterval) {
+    clearInterval(autoCallInterval);
+    autoCallInterval = null;
+  }
+  renderWinHistory([]); 
+});
 
   function renderPlayerCard() {
     const grid = document.getElementById('bingo-card');
@@ -499,6 +634,37 @@ socket.emit('joinGame', { playerId, name: name });
       container.appendChild(chip);
     });
   }
+
+  function renderWinHistory(history) {
+  const container = document.getElementById('win-history-list');
+  if (!container) return; // player screens don't have this element — safe no-op
+
+  container.innerHTML = '';
+
+  if (!history || history.length === 0) {
+    container.innerHTML = '<span style="color:#6b7280;font-size:0.85rem;">No wins yet this session.</span>';
+    return;
+  }
+
+  history.forEach(function(entry, index) {
+    const row = document.createElement('div');
+    row.style.background = '#0d0d1a';
+    row.style.borderRadius = '8px';
+    row.style.padding = '8px 12px';
+    row.style.fontSize = '0.9rem';
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+
+    const label = WIN_LABELS[entry.pattern] || entry.pattern;
+    const time = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    row.innerHTML =
+      '<span>🏆 <strong>' + entry.name + '</strong> — ' + label + '</span>' +
+      '<span style="color:#6b7280;">' + time + '</span>';
+
+    container.appendChild(row);
+  });
+}
 
   function renderAllPlayerCards(players) {
     const grid = document.getElementById('player-cards-grid');
