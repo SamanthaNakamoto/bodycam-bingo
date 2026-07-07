@@ -58,7 +58,9 @@ const PHRASES = [
 
 let gameState = {
   calledPhrases: [],
-  players: {} // now keyed by playerId (persistent), not socket.id
+  players: {},
+  currentWinCondition: 'singleLine',
+  winHistory: [] 
 };
 
 const disconnectTimers = {}; // playerId -> setTimeout reference
@@ -92,7 +94,7 @@ function generateCard() {
   return card;
 }
 
-function checkBingo(card) {
+function hasAnyLine(card) {
   for (let r = 0; r < 5; r++) {
     if (card[r].every(cell => cell.marked)) return true;
   }
@@ -104,15 +106,69 @@ function checkBingo(card) {
   return false;
 }
 
+function hasXPattern(card) {
+  const diag1 = [0,1,2,3,4].every(i => card[i][i].marked);
+  const diag2 = [0,1,2,3,4].every(i => card[i][4-i].marked);
+  return diag1 && diag2;
+}
+
+function hasFourCorners(card) {
+  return card[0][0].marked && card[0][4].marked &&
+         card[4][0].marked && card[4][4].marked;
+}
+
+function hasBlackout(card) {
+  return card.every(row => row.every(cell => cell.marked));
+}
+
+function checkBingo(card) {
+  switch (gameState.currentWinCondition) {
+    case 'xPattern':    return hasXPattern(card);
+    case 'fourCorners': return hasFourCorners(card);
+    case 'blackout':    return hasBlackout(card);
+    case 'singleLine':
+    default:             return hasAnyLine(card);
+  }
+}
+
+function registerWinConditionHandler(socket) {
+  socket.on('setWinCondition', (condition) => {
+    gameState.currentWinCondition = condition;
+
+    // Reset everyone's bingo flag so they can win again under the new pattern
+    Object.values(gameState.players).forEach(player => {
+      player.hasBingo = false;
+    });
+
+    io.emit('winConditionChanged', condition);
+    io.emit('playerUpdate', buildPlayerList()); // clears old trophy icons on host view
+    console.log('Host changed win condition to:', condition);
+  });
+}
+
 io.on('connection', (socket) => {
+  registerWinConditionHandler(socket);
+
   console.log('User connected:', socket.id);
 
-  socket.emit('gameState', {
-    calledPhrases: gameState.calledPhrases,
-    allPhrases: PHRASES
-  });
+ socket.emit('gameState', {
+  calledPhrases: gameState.calledPhrases,
+  allPhrases: PHRASES,
+  currentWinCondition: gameState.currentWinCondition // 
+});
 
-  socket.on('joinGame', ({ playerId, name }) => {
+socket.on('requestHostData', () => {
+  socket.emit('hostData', {
+    calledPhrases: gameState.calledPhrases,
+    allPhrases: PHRASES,
+    players: buildPlayerList(),
+    currentWinCondition: 
+gameState.currentWinCondition,
+    winHistory: gameState.winHistory
+  });
+});
+
+socket.on('joinGame', ({ playerId, name }) => {
     // Cancel pending removal if this player is reconnecting
     if (disconnectTimers[playerId]) {
       clearTimeout(disconnectTimers[playerId]);
@@ -145,13 +201,10 @@ io.on('connection', (socket) => {
     io.emit('playerUpdate', buildPlayerList());
   });
 
-  socket.on('requestHostData', () => {
-    socket.emit('hostData', {
-      calledPhrases: gameState.calledPhrases,
-      players: buildPlayerList(),
-      allPhrases: PHRASES
-    });
+  socket.on('playerReaction', (data) => {
+    io.emit('reactionBroadcast', data);
   });
+
 
   socket.on('callPhrase', (phrase) => {
     if (!gameState.calledPhrases.includes(phrase)) {
@@ -176,23 +229,41 @@ io.on('connection', (socket) => {
         }
       }
     }
-
+    
     if (!player.hasBingo && checkBingo(player.card)) {
-      player.hasBingo = true;
-      io.emit('bingoAnnounce', { name: player.name });
-    }
+  player.hasBingo = true;
+
+  const winEntry = {
+    name: player.name,
+    pattern: gameState.currentWinCondition,
+    timestamp: Date.now()
+  };
+  gameState.winHistory.push(winEntry);
+
+  io.emit('bingoAnnounce', {
+    name: player.name,
+    pattern: gameState.currentWinCondition 
+  });
+  io.emit('winHistoryUpdate', gameState.winHistory); 
+}
+
 
     io.emit('playerUpdate', buildPlayerList());
   });
 
-  socket.on('resetGame', () => {
-    Object.values(disconnectTimers).forEach(clearTimeout);
-    for (const key in disconnectTimers) delete disconnectTimers[key];
+socket.on('resetGame', () => {
+  Object.values(disconnectTimers).forEach(clearTimeout);
+  for (const key in disconnectTimers) delete disconnectTimers[key];
 
-    gameState = { calledPhrases: [], players: {} };
-    io.emit('gameReset');
-    io.emit('playerUpdate', []);
-  });
+  gameState = {
+    calledPhrases: [],
+    players: {},
+    currentWinCondition: 'singleLine',
+    winHistory: [] // 
+  };
+  io.emit('gameReset');
+  io.emit('playerUpdate', []);
+});
 
   socket.on('disconnect', () => {
     const playerId = socket.playerId;
