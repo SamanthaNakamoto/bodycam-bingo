@@ -265,6 +265,44 @@ socket.on('resetGame', () => {
   io.emit('playerUpdate', []);
 });
 
+socket.on('resetGame', () => {
+  if (!socket.isHost) return;
+  Object.values(disconnectTimers).forEach(clearTimeout);
+  for (const key in disconnectTimers) delete disconnectTimers[key];
+
+  gameState = {
+    calledPhrases: [],
+    players: Object.create(null),
+    currentWinCondition: 'singleLine',
+    winHistory: []
+  };
+  io.emit('gameReset');
+  io.emit('playerUpdate', []);
+});
+
+socket.on('removePlayer', (playerId) => {
+  if (!socket.isHost) return;
+  if (!isValidPlayerId(playerId)) return;
+
+  const player = gameState.players[playerId];
+  if (!player) return;
+
+  // Cancel any pending grace-period timer for this player
+  if (disconnectTimers[playerId]) {
+    clearTimeout(disconnectTimers[playerId]);
+    delete disconnectTimers[playerId];
+  }
+
+  // Notify that specific player's browser (if still connected) so they see feedback
+  if (player.socketId) {
+    io.to(player.socketId).emit('youWereRemoved');
+  }
+
+  delete gameState.players[playerId];
+  io.emit('playerUpdate', buildPlayerList());
+  console.log('Host removed player:', playerId);
+});
+
   socket.on('disconnect', () => {
     const playerId = socket.playerId;
     if (!playerId || !gameState.players[playerId]) return;

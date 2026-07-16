@@ -521,13 +521,36 @@ function flashSiren() {
   flash.classList.add('active');
 }
 
-
   socket.on('playerUpdate', function(players) {
     const count = players.length;
     document.getElementById('player-count').textContent =
       count + ' player' + (count !== 1 ? 's' : '') + ' connected';
     if (isHost) renderAllPlayerCards(players);
   });
+
+  socket.on('playerUpdate', (players) => {
+  playerListEl.innerHTML = '';
+  players.forEach(p => {
+    const row = document.createElement('div');
+    row.classList.add('player-row');
+
+    const label = document.createElement('span');
+    label.textContent = `${p.name} ${p.hasBingo ? '🏆' : ''}`;
+    row.appendChild(label);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '❌ Remove';
+    removeBtn.classList.add('remove-btn');
+    removeBtn.addEventListener('click', () => {
+      if (confirm(`Remove ${p.name} from the game?`)) {
+        socket.emit('removePlayer', p.id);
+      }
+    });
+    row.appendChild(removeBtn);
+
+    playerListEl.appendChild(row);
+  });
+});
 
 socket.on('bingoAnnounce', function(data) {
   const patternLabel = WIN_LABELS[data.pattern] || data.pattern;
@@ -667,30 +690,44 @@ socket.on('gameReset', function() {
 }
 
   function renderAllPlayerCards(players) {
-    const grid = document.getElementById('player-cards-grid');
-    grid.innerHTML = '';
-    players.forEach(function(player) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'player-card-wrapper' + (player.hasBingo ? ' has-bingo' : '');
-      const title = document.createElement('h4');
-      title.textContent = player.hasBingo ? '🏆 ' + player.name : player.name;
-      wrapper.appendChild(title);
-      const miniGrid = document.createElement('div');
-      miniGrid.className = 'mini-grid';
-      player.card.forEach(function(row) {
-        row.forEach(function(cell) {
-          const c = document.createElement('div');
-          c.className = 'mini-cell' +
-            (cell.free ? ' free' : '') +
-            (cell.marked ? ' marked' : '');
-          c.textContent = cell.phrase;
-          miniGrid.appendChild(c);
-        });
-      });
-      wrapper.appendChild(miniGrid);
-      grid.appendChild(wrapper);
+  const grid = document.getElementById('player-cards-grid');
+  grid.innerHTML = '';
+  players.forEach(function(player) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'player-card-wrapper' + (player.hasBingo ? ' has-bingo' : '');
+
+    const title = document.createElement('h4');
+    title.textContent = player.hasBingo ? '🏆 ' + player.name : player.name;
+    wrapper.appendChild(title);
+
+    // NEW: Remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '❌ Remove';
+    removeBtn.className = 'remove-btn';
+    removeBtn.addEventListener('click', function() {
+      if (confirm('Remove ' + player.name + ' from the game?')) {
+        socket.emit('removePlayer', player.id);
+      }
     });
-  }
+    wrapper.appendChild(removeBtn);
+
+    const miniGrid = document.createElement('div');
+    miniGrid.className = 'mini-grid';
+    player.card.forEach(function(row) {
+      row.forEach(function(cell) {
+        const c = document.createElement('div');
+        c.className = 'mini-cell' +
+          (cell.free ? ' free' : '') +
+          (cell.marked ? ' marked' : '');
+        c.textContent = cell.phrase;
+        miniGrid.appendChild(c);
+      });
+    });
+    wrapper.appendChild(miniGrid);
+
+    grid.appendChild(wrapper);
+  });
+}
 
   document.getElementById('name-input')
     .addEventListener('keydown', function(e) {
