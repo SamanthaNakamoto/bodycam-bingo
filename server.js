@@ -11,6 +11,8 @@ const io = new Server(server, {
   }
 });
 
+const HOST_KEY = 'x93-lux-raven-andras-edwina-protocol-261k'; // must match index.html exactly
+
 app.use(express.static('public'));
 
 const PHRASES = [
@@ -60,7 +62,7 @@ let gameState = {
   calledPhrases: [],
   players: {},
   currentWinCondition: 'singleLine',
-  winHistory: [] 
+  winHistory: []
 };
 
 const disconnectTimers = {}; // playerId -> setTimeout reference
@@ -133,15 +135,15 @@ function checkBingo(card) {
 
 function registerWinConditionHandler(socket) {
   socket.on('setWinCondition', (condition) => {
+    if (!socket.isHost) return;
     gameState.currentWinCondition = condition;
 
-    // Reset everyone's bingo flag so they can win again under the new pattern
     Object.values(gameState.players).forEach(player => {
       player.hasBingo = false;
     });
 
     io.emit('winConditionChanged', condition);
-    io.emit('playerUpdate', buildPlayerList()); // clears old trophy icons on host view
+    io.emit('playerUpdate', buildPlayerList());
     console.log('Host changed win condition to:', condition);
   });
 }
@@ -151,25 +153,31 @@ io.on('connection', (socket) => {
 
   console.log('User connected:', socket.id);
 
- socket.emit('gameState', {
-  calledPhrases: gameState.calledPhrases,
-  allPhrases: PHRASES,
-  currentWinCondition: gameState.currentWinCondition // 
-});
-
-socket.on('requestHostData', () => {
-  socket.emit('hostData', {
+  socket.emit('gameState', {
     calledPhrases: gameState.calledPhrases,
     allPhrases: PHRASES,
-    players: buildPlayerList(),
-    currentWinCondition: 
-gameState.currentWinCondition,
-    winHistory: gameState.winHistory
+    currentWinCondition: gameState.currentWinCondition
   });
-});
 
-socket.on('joinGame', ({ playerId, name }) => {
-    // Cancel pending removal if this player is reconnecting
+  socket.on('authenticateHost', (key) => {
+    if (key === HOST_KEY) {
+      socket.isHost = true;
+      console.log('Host authenticated:', socket.id);
+    }
+  });
+
+  socket.on('requestHostData', () => {
+    if (!socket.isHost) return;
+    socket.emit('hostData', {
+      calledPhrases: gameState.calledPhrases,
+      allPhrases: PHRASES,
+      players: buildPlayerList(),
+      currentWinCondition: gameState.currentWinCondition,
+      winHistory: gameState.winHistory
+    });
+  });
+
+  socket.on('joinGame', ({ playerId, name }) => {
     if (disconnectTimers[playerId]) {
       clearTimeout(disconnectTimers[playerId]);
       delete disconnectTimers[playerId];
@@ -178,7 +186,6 @@ socket.on('joinGame', ({ playerId, name }) => {
     socket.playerId = playerId;
 
     if (gameState.players[playerId]) {
-      // Returning player — restore their existing card/progress
       gameState.players[playerId].socketId = socket.id;
       gameState.players[playerId].connected = true;
       socket.emit('cardDealt', {
@@ -186,7 +193,6 @@ socket.on('joinGame', ({ playerId, name }) => {
         calledPhrases: gameState.calledPhrases
       });
     } else {
-      // Brand new player
       const card = generateCard();
       gameState.players[playerId] = {
         name,
@@ -201,12 +207,8 @@ socket.on('joinGame', ({ playerId, name }) => {
     io.emit('playerUpdate', buildPlayerList());
   });
 
-  socket.on('playerReaction', (data) => {
-    io.emit('reactionBroadcast', data);
-  });
-
-
   socket.on('callPhrase', (phrase) => {
+    if (!socket.isHost) return;
     if (!gameState.calledPhrases.includes(phrase)) {
       gameState.calledPhrases.push(phrase);
       io.emit('phraseCalled', {
@@ -229,78 +231,64 @@ socket.on('joinGame', ({ playerId, name }) => {
         }
       }
     }
-    
+
     if (!player.hasBingo && checkBingo(player.card)) {
-  player.hasBingo = true;
+      player.hasBingo = true;
 
-  const winEntry = {
-    name: player.name,
-    pattern: gameState.currentWinCondition,
-    timestamp: Date.now()
-  };
-  gameState.winHistory.push(winEntry);
+      const winEntry = {
+        name: player.name,
+        pattern: gameState.currentWinCondition,
+        timestamp: Date.now()
+      };
+      gameState.winHistory.push(winEntry);
 
-  io.emit('bingoAnnounce', {
-    name: player.name,
-    pattern: gameState.currentWinCondition 
-  });
-  io.emit('winHistoryUpdate', gameState.winHistory); 
-}
-
+      io.emit('bingoAnnounce', {
+        name: player.name,
+        pattern: gameState.currentWinCondition
+      });
+      io.emit('winHistoryUpdate', gameState.winHistory);
+    }
 
     io.emit('playerUpdate', buildPlayerList());
   });
 
-socket.on('resetGame', () => {
-  Object.values(disconnectTimers).forEach(clearTimeout);
-  for (const key in disconnectTimers) delete disconnectTimers[key];
+  socket.on('resetGame', () => {
+    if (!socket.isHost) return;
 
-  gameState = {
-    calledPhrases: [],
-    players: {},
-    currentWinCondition: 'singleLine',
-    winHistory: [] // 
-  };
-  io.emit('gameReset');
-  io.emit('playerUpdate', []);
-});
+    Object.values(disconnectTimers).forEach(clearTimeout);
+    for (const key in disconnectTimers) delete disconnectTimers[key];
 
-socket.on('resetGame', () => {
-  if (!socket.isHost) return;
-  Object.values(disconnectTimers).forEach(clearTimeout);
-  for (const key in disconnectTimers) delete disconnectTimers[key];
+    gameState = {
+      calledPhrases: [],
+      players: {},
+      currentWinCondition: 'singleLine',
+      winHistory: []
+    };
+    io.emit('gameReset');
+    io.emit('playerUpdate', []);
+    console.log('Game reset by host:', socket.id);
+  });
 
-  gameState = {
-    calledPhrases: [],
-    players: Object.create(null),
-    currentWinCondition: 'singleLine',
-    winHistory: []
-  };
-  io.emit('gameReset');
-  io.emit('playerUpdate', []);
-});
+  socket.on('removePlayer', (playerId) => {
+    if (!socket.isHost) return;
+    if (typeof playerId !== 'string' || !playerId) return;
 
-socket.on('removePlayer', (playerId) => {
-  if (typeof playerId !== 'string' || !playerId) return;
+    const player = gameState.players[playerId];
+    if (!player) return;
 
-  const player = gameState.players[playerId];
-  if (!player) return;
+    if (disconnectTimers[playerId]) {
+      clearTimeout(disconnectTimers[playerId]);
+      delete disconnectTimers[playerId];
+    }
 
-  // Cancel any pending grace-period timer for this player
-  if (disconnectTimers[playerId]) {
-    clearTimeout(disconnectTimers[playerId]);
-    delete disconnectTimers[playerId];
-  }
+    if (player.socketId) {
+      io.to(player.socketId).emit('youWereRemoved');
+    }
 
-  // Notify that specific player's browser (if still connected) so they see feedback
-  if (player.socketId) {
-    io.to(player.socketId).emit('youWereRemoved');
-  }
-
-  delete gameState.players[playerId];
-  io.emit('playerUpdate', buildPlayerList());
-  console.log('Host removed player:', playerId);
-});
+    delete gameState.players[playerId];
+    io.emit('playerUpdate', buildPlayerList());
+    console.log('Host removed player:', playerId);
+  });
 
   socket.on('disconnect', () => {
     const playerId = socket.playerId;
@@ -308,7 +296,6 @@ socket.on('removePlayer', (playerId) => {
 
     gameState.players[playerId].connected = false;
 
-    // Grace period before actually removing the player
     disconnectTimers[playerId] = setTimeout(() => {
       delete gameState.players[playerId];
       delete disconnectTimers[playerId];

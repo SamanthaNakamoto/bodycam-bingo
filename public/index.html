@@ -295,11 +295,6 @@
   <p style="text-align:center;color:#6b7280;font-size:0.8rem;margin-top:8px;">
     Only called phrases can be marked ✓
   </p>
-  <div class="reaction-bar">
-    <button class="reaction-btn" onclick="sendReaction('😤')">😤</button>
-    <button class="reaction-btn" onclick="sendReaction('🍿')">🍿</button>
-    <button class="reaction-btn" onclick="sendReaction('🙄')">🙄</button>
-  </div>
 </div>
 
 <!-- HOST SCREEN -->
@@ -391,12 +386,12 @@ function joinGame() {
   isHost = false;
   currentPlayerName = name;
 
-  // Generate or retrieve a persistent player ID
-  playerId = localStorage.getItem('bingoPlayerId');
-  if (!playerId) {
-    playerId = crypto.randomUUID();
-    localStorage.setItem('bingoPlayerId', playerId);
-  }
+ // Generate or retrieve a persistent player ID
+playerId = sessionStorage.getItem('bingoPlayerId');
+if (!playerId) {
+  playerId = crypto.randomUUID();
+  sessionStorage.setItem('bingoPlayerId', playerId);
+}
 
   // Send both playerId and name when joining
   socket.emit('joinGame', { playerId, name: name });
@@ -405,20 +400,17 @@ function joinGame() {
 document.getElementById('player-greeting').textContent = 'Your card, ' + name + ' 📹';
 }
 
-function sendReaction(emote) {
-  socket.emit('playerReaction', { playerId, name: currentPlayerName, emote });
-}
-
-  function goHostView() {
-    if (!hasHostKey) {
-      alert('Access denied.');
-      return;
-    }
-    isHost = true;
-    socket.emit('requestHostData');
-    document.getElementById('join-screen').style.display = 'none';
-    document.getElementById('host-screen').style.display = 'block';
+function goHostView() {
+  if (!hasHostKey) {
+    alert('Access denied.');
+    return;
   }
+  isHost = true;
+  socket.emit('authenticateHost', HOST_KEY); // ← ADD THIS LINE
+  socket.emit('requestHostData');
+  document.getElementById('join-screen').style.display = 'none';
+  document.getElementById('host-screen').style.display = 'block';
+}
 
   function callPhrase() {
     const sel = document.getElementById('phrase-select');
@@ -533,30 +525,6 @@ function flashSiren() {
     if (isHost) renderAllPlayerCards(players);
   });
 
-  socket.on('playerUpdate', (players) => {
-  playerListEl.innerHTML = '';
-  players.forEach(p => {
-    const row = document.createElement('div');
-    row.classList.add('player-row');
-
-    const label = document.createElement('span');
-    label.textContent = `${p.name} ${p.hasBingo ? '🏆' : ''}`;
-    row.appendChild(label);
-
-    const removeBtn = document.createElement('button');
-    removeBtn.textContent = '❌ Remove';
-    removeBtn.classList.add('remove-btn');
-    removeBtn.addEventListener('click', () => {
-      if (confirm(`Remove ${p.name} from the game?`)) {
-        socket.emit('removePlayer', p.id);
-      }
-    });
-    row.appendChild(removeBtn);
-
-    playerListEl.appendChild(row);
-  });
-});
-
 socket.on('bingoAnnounce', function(data) {
   const patternLabel = WIN_LABELS[data.pattern] || data.pattern;
   if (!isHost) {
@@ -568,10 +536,6 @@ socket.on('bingoAnnounce', function(data) {
     document.getElementById('host-bingo-text').textContent = '🎉 ' + data.name + ' got BINGO! (' + patternLabel + ')';
     alertBox.style.display = 'block';
   }
-});
-
-  socket.on('reactionBroadcast', ({ name, emote }) => {
-  showFloatingReaction(name, emote);
 });
 
 function showFloatingReaction(name, emote) {
