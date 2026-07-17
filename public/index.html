@@ -479,6 +479,11 @@ function sendReaction(emote) {
     updatePlayerCardMarks();  
   });
 
+socket.on('youWereRemoved', () => {
+  alert('You have been removed from the game by the host.');
+  document.body.innerHTML = '<h2 style="text-align:center; margin-top:40px; color:#aaa;">You were removed from the game.</h2>';
+});
+
   socket.on('hostData', function(data) {
   calledPhrases = data.calledPhrases;
   allPhrases    = data.allPhrases;
