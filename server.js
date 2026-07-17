@@ -281,8 +281,7 @@ socket.on('resetGame', () => {
 });
 
 socket.on('removePlayer', (playerId) => {
-  if (!socket.isHost) return;
-  if (!isValidPlayerId(playerId)) return;
+  if (typeof playerId !== 'string' || !playerId) return;
 
   const player = gameState.players[playerId];
   if (!player) return;
