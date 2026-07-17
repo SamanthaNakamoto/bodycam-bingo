@@ -79,7 +79,16 @@
     .bingo-cell:hover { border-color: #7c3aed; }
     .bingo-cell.marked   { background: #7c3aed; color: #fff; border-color: #a78bfa; }
     .bingo-cell.free     { background: #4c1d95; color: #fbbf24; font-weight: bold; cursor: default; }
-    .bingo-cell.callable { border-color: #fbbf24; }
+.bingo-cell.callable:not(.marked) {
+  border: 3px solid #ef4444;
+  animation: pulseRed 1.2s ease-in-out infinite;
+}
+
+@keyframes pulseRed {
+  0%, 100% { box-shadow: 0 0 4px 1px rgba(239, 68, 68, 0.5); }
+  50%      { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.9); }
+}
+
     #host-screen { display: none; }
     .host-controls {
       background: #1e1b4b;
@@ -291,9 +300,9 @@
  <div id="player-screen">
   <p id="player-greeting" style="text-align:center;color:#c4b5fd;margin-bottom:12px;"></p>
 <p id="win-condition-banner" style="text-align:center;color:#fbbf24;font-weight:bold;margin-bottom:12px;"></p>
-  <div id="bingo-card" class="bingo-grid"></div>
-  <p style="text-align:center;color:#6b7280;font-size:0.8rem;margin-top:8px;">
-    Only called phrases can be marked ✓
+    <div id="bingo-card" class="bingo-grid"></div>
+  <p style="text-align:center;color:#ef4444;font-weight:bold;font-size:0.95rem;margin-top:10px;">
+    👆 Click each called phrase yourself to mark it — cards do NOT auto-mark!
   </p>
 </div>
 
@@ -320,7 +329,7 @@
   </div>
 
   <div class="called-phrases" id="win-history-section">
-  <h3>🏆 Hall of Fame</h3>
+  <h3>🏆 Past Winners</h3>
   <div id="win-history-list" style="display:flex; flex-direction:column; gap:8px;"></div>
 </div>
 
@@ -469,7 +478,40 @@ function goHostView() {
     calledPhrases = data.calledPhrases;
     renderPlayerCard();
     updatePlayerCardMarks();  
+  
+  if (!sessionStorage.getItem('hasSeenMarkInstructions')) {
+    showMarkInstructionsModal();
+    sessionStorage.setItem('hasSeenMarkInstructions', 'true');
+  }
+});
+
+function showMarkInstructionsModal() {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); display: flex; align-items: center;
+    justify-content: center; z-index: 9999;
+  `;
+  modal.innerHTML = `
+    <div style="background:#1f2937; border:2px solid #ef4444; border-radius:12px;
+                padding:24px; max-width:320px; text-align:center; color:white;">
+      <p style="font-size:1.1rem; margin-bottom:12px;">📌 <strong>Heads up!</strong></p>
+      <p style="margin-bottom:16px;">
+        A <strong style="color:#ef4444;">pulsing red border</strong> means a phrase has been called —
+        but <strong style="color:#f87171;">you must tap it yourself</strong>
+        to mark it. Cards do not auto-mark!
+      </p>
+      <button id="closeMarkModal" style="background:#7c3aed; color:white;
+              border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">
+        Got it!
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('closeMarkModal').addEventListener('click', () => {
+    modal.remove();
   });
+}
 
 socket.on('youWereRemoved', () => {
   alert('You have been removed from the game by the host.');
