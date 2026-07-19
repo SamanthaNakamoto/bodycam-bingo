@@ -401,9 +401,9 @@ if (!playerId) {
 document.getElementById('player-greeting').textContent = 'Your card, ' + name + ' 📹';
 }
 
-// Cosmetic host button visibility — controlled by ?mode=host in URL
+// Cosmetic host button visibility — controlled by presence of ?host= in URL
 const urlParams = new URLSearchParams(window.location.search);
-const showHostButton = urlParams.get('mode') === 'host';
+const showHostButton = urlParams.has('host');
 
 if (!showHostButton) {
   const hostBtn = document.getElementById('host-btn');
