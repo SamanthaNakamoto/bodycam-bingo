@@ -161,7 +161,10 @@ io.on('connection', (socket) => {
   });
 
 socket.on('authenticateHost', (key) => {
-  if (key === HOST_KEY) {
+  const receivedKey = (key || '').trim();
+  const expectedKey = (HOST_KEY || '').trim();
+  console.log('DEBUG — received length:', receivedKey.length, 'expected length:', expectedKey.length);
+  if (receivedKey === expectedKey) {
     socket.isHost = true;
     console.log('Host authenticated:', socket.id);
     socket.emit('hostAuthResult', { success: true });
