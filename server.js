@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,7 +12,7 @@ const io = new Server(server, {
   }
 });
 
-const HOST_KEY = 'x93-lux-raven-andras-edwina-protocol-261k'; // must match index.html exactly
+const HOST_KEY = process.env.HOST_KEY;
 
 app.use(express.static('public'));
 
