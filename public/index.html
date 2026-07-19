@@ -401,6 +401,17 @@ if (!playerId) {
 document.getElementById('player-greeting').textContent = 'Your card, ' + name + ' 📹';
 }
 
+// Cosmetic host button visibility — controlled by ?mode=host in URL
+const urlParams = new URLSearchParams(window.location.search);
+const showHostButton = urlParams.get('mode') === 'host';
+
+if (!showHostButton) {
+  const hostBtn = document.getElementById('host-btn');
+  const hostDivider = document.getElementById('host-btn-divider');
+  if (hostBtn) hostBtn.style.display = 'none';
+  if (hostDivider) hostDivider.style.display = 'none';
+}
+
 function goHostView() {
   const enteredKey = prompt('Enter host access key:');
   if (!enteredKey) return;
