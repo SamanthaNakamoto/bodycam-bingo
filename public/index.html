@@ -380,18 +380,7 @@ function updateWinConditionBanner() {
 }
 
 
-  // ── HOST KEY CHECK ──────────────────────────────────────────
-  const HOST_KEY = 'x93-lux-raven-andras-edwina-protocol-261k';
-  const urlParams = new URLSearchParams(window.location.search);
-  const hasHostKey = urlParams.get('host') === HOST_KEY;
-
-  // Hide the Host/Mod button entirely for regular viewers
-  if (!hasHostKey) {
-    document.getElementById('host-btn').style.display = 'none';
-    document.getElementById('host-btn-divider').style.display = 'none';
-  }
-  // ────────────────────────────────────────────────────────────
-
+ 
 function joinGame() {
   const name = document.getElementById('name-input').value.trim();
   if (!name) { alert('Please enter your name!'); return; }
@@ -413,16 +402,22 @@ document.getElementById('player-greeting').textContent = 'Your card, ' + name + 
 }
 
 function goHostView() {
-  if (!hasHostKey) {
-    alert('Access denied.');
-    return;
-  }
-  isHost = true;
-  socket.emit('authenticateHost', HOST_KEY); // ← ADD THIS LINE
-  socket.emit('requestHostData');
-  document.getElementById('join-screen').style.display = 'none';
-  document.getElementById('host-screen').style.display = 'block';
+  const enteredKey = prompt('Enter host access key:');
+  if (!enteredKey) return;
+  socket.emit('authenticateHost', enteredKey);
 }
+
+socket.on('hostAuthResult', function(result) {
+  if (result.success) {
+    isHost = true;
+    socket.emit('requestHostData');
+    document.getElementById('join-screen').style.display = 'none';
+    document.getElementById('host-screen').style.display = 'block';
+  } else {
+    alert('Access denied — incorrect key.');
+  }
+});
+
 
   function callPhrase() {
     const sel = document.getElementById('phrase-select');

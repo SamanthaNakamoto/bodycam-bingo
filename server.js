@@ -160,12 +160,15 @@ io.on('connection', (socket) => {
     currentWinCondition: gameState.currentWinCondition
   });
 
-  socket.on('authenticateHost', (key) => {
-    if (key === HOST_KEY) {
-      socket.isHost = true;
-      console.log('Host authenticated:', socket.id);
-    }
-  });
+socket.on('authenticateHost', (key) => {
+  if (key === HOST_KEY) {
+    socket.isHost = true;
+    console.log('Host authenticated:', socket.id);
+    socket.emit('hostAuthResult', { success: true });
+  } else {
+    socket.emit('hostAuthResult', { success: false });
+  }
+});
 
   socket.on('requestHostData', () => {
     if (!socket.isHost) return;
